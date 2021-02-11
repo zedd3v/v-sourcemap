@@ -6,3 +6,4 @@ sourcemap
 *.so
 *.dylib
 *.dll
+debug.log

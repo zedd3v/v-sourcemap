@@ -7,18 +7,18 @@ import sourcemap.internal.base64vlq
 type Func = fn (m &mappings) ?Func
 
 struct Mapping {
-	genLine      int32
-	genColumn    int32
-	sourcesInd   int32
-	sourceLine   int32
-	sourceColumn int32
-	namesInd     int32
+	gen_line      int32
+	gen_column    int32
+	sources_ind   int32
+	source_line   int32
+	source_column int32
+	names_ind     int32
 }
 
 struct Mappings {
-	rd      &strings.Reader
-	dec     base64vlq.Decoder
-	hasName bool
+	rd       &strings.Reader
+	dec      base64vlq.Decoder
+	has_name bool
 mut:
 	value  mapping
 	values []mapping
@@ -35,8 +35,8 @@ fn parse_mappings(s string) ?[]Mapping {
 		dec: base64vlq.new_decoder(rd)
 		values: make([]Mapping{}, 0, mappings_number(s))
 	}
-	m.value.genLine = 1
-	m.value.sourceLine = 1
+	m.value.gen_line = 1
+	m.value.source_line = 1
 
 	m.parse() ?
 
@@ -50,33 +50,33 @@ fn mappings_number(s string) int {
 }
 
 fn (m &mappings) parse() ? {
-	next := parseGenCol
+	next := parse_gen_col
 	for {
 		c, err := m.rd.ReadByte() or {
 			if err == io.EOF {
-				m.pushValue()
+				m.push_value()
 				return
 			}
 
 			return error(err)
 		}
 		if err == io.EOF {
-			m.pushValue()
+			m.push_value()
 			return nil
 		}
 
 		match c {
 			',' {
-				m.pushValue()
-				next = parseGenCol
+				m.push_value()
+				next = parse_gen_col
 			}
 			';' {
-				m.pushValue()
+				m.push_value()
 
-				m.value.genLine++
-				m.value.genColumn = 0
+				m.value.gen_line++
+				m.value.gen_column = 0
 
-				next = parseGenCol
+				next = parse_gen_col
 			}
 			else {
 				m.rd.UnreadByte() ?
@@ -88,57 +88,57 @@ fn (m &mappings) parse() ? {
 }
 
 fn parse_gen_col(m &Mappings) ?func {
-	n := m.dec.Decode() ?
+	n := m.dec.decode() ?
 
-	m.value.genColumn += n
+	m.value.gen_column += n
 	return parse_sources_ind, nil
 }
 
 fn parse_sources_ind(m &Mappings) ?func {
-	n := m.dec.Decode() ?
+	n := m.dec.decode() ?
 
-	m.value.sourcesInd += n
+	m.value.sources_ind += n
 	return parse_source_line, nil
 }
 
 fn parse_source_line(m &Mappings) ?func {
-	n := m.dec.Decode() ?
+	n := m.dec.decode() ?
 
-	m.value.sourceLine += n
+	m.value.source_line += n
 	return parse_source_col, nil
 }
 
 fn parse_source_col(m &Mappings) ?func {
-	n := m.dec.Decode() ?
+	n := m.dec.decode() ?
 
-	m.value.sourceColumn += n
+	m.value.source_column += n
 	return parse_names_ind, nil
 }
 
 fn parse_names_ind(m &Mappings) ?func {
-	n := m.dec.Decode() ?
+	n := m.dec.decode() ?
 
-	m.hasName = true
-	m.value.namesInd += n
+	m.has_name = true
+	m.value.names_ind += n
 	return parse_gen_col, nil
 }
 
 fn (m &Mappings) push_value() {
-	if m.value.sourceLine == 1 && m.value.sourceColumn == 0 {
+	if m.value.source_line == 1 && m.value.source_column == 0 {
 		return
 	}
 
-	if m.hasName {
-		m.values = append(m.values, m.value)
-		m.hasName = false
+	if m.has_name {
+		m.values = m.values << m.value
+		m.has_name = false
 	} else {
-		m.values = append(m.values, Mapping{
-			genLine: m.value.genLine
-			genColumn: m.value.genColumn
-			sourcesInd: m.value.sourcesInd
-			sourceLine: m.value.sourceLine
-			sourceColumn: m.value.sourceColumn
-			namesInd: -1
-		})
+		m.values = m.values << Mapping{
+			gen_line: m.value.gen_line
+			gen_column: m.value.gen_column
+			sources_ind: m.value.sources_ind
+			source_line: m.value.source_line
+			source_column: m.value.source_column
+			names_ind: -1
+		}
 	}
 }

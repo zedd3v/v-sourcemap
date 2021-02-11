@@ -8,9 +8,9 @@ struct SourceMap {
 pub:
 	version         int               [json: version]
 	file            string            [json: file]
-	source_root     string            [json: sourceRoot]
+	source_root     string            [json: source_root]
 	sources         []string          [json: sources]
-	sources_content []string          [json: sourcesContent]
+	sources_content []string          [json: sources_content]
 	names           []json.RawMessage [json: names]
 	mappings        string            [json: mappings]
 	mappings        []mapping
@@ -22,29 +22,29 @@ pub:
 	sections []Section [json: sections]
 }
 
-fn (m &SourceMap) parse(sourcemapURL string) ? {
-	checkVersion(m.Version) ?
+fn (m &SourceMap) parse(source_map_url string) ? {
+	check_version(m.Version) ?
 
-	sourceRootURL := net.urllib.URL
+	source_root_url := net.urllib.URL
 	{
 	}
-	if m.SourceRoot != '' {
-		u := urllib.parse(m.SourceRoot) ?
+	if m.source_root != '' {
+		u := urllib.parse(m.source_root) ?
 
-		if u.IsAbs() {
-			sourceRootURL = u
+		if u.is_abs() {
+			source_root_url = u
 		}
-	} else if sourcemapURL != '' {
-		u := urllib.parse(sourcemapURL) ?
+	} else if source_map_url != '' {
+		u := urllib.parse(source_map_url) ?
 
-		if u.IsAbs() {
-			u.Path = os.dir(u.Path)
-			sourceRootURL = u
+		if u.is_abs() {
+			u.path = os.dir(u.Path)
+			source_root_url = u
 		}
 	}
 
 	for i, src in m.Sources {
-		m.Sources[i] = m.abs_source(sourceRootURL, src)
+		m.Sources[i] = m.abs_source(source_root_url, src)
 	}
 
 	mappings := parse_mappings(m.mappings) ?
@@ -57,34 +57,34 @@ fn (m &SourceMap) parse(sourcemapURL string) ? {
 }
 
 fn (m &SourceMap) abs_source(root &urllib.URL, source string) string {
-	if path.IsAbs(source) {
+	if os.is_abs_path(source) {
 		return source
 	}
 
 	u := urllib.parse(source) ?
-	if u.IsAbs() {
+	if u.is_abs() {
 		return source
 	}
 
 	if root != nil {
 		uu := root
-		uu.Path = path.Join(u.Path, source)
+		uu.path = os.join_path(u.path, source)
 		return uu.String()
 	}
 
-	if m.SourceRoot != '' {
-		return path.Join(m.SourceRoot, source)
+	if m.source_root != '' {
+		return os.join_path(m.source_root, source)
 	}
 
 	return source
 }
 
 fn (m &SourceMap) name(idx int) string {
-	if idx >= m.Names.len {
+	if idx >= m.names.len {
 		return ''
 	}
 
-	raw := m.Names[idx]
+	raw := m.names[idx]
 	if raw.len == 0 {
 		return ''
 	}
@@ -104,36 +104,36 @@ pub:
 
 struct Section {
 pub:
-	offset    Offset     [json: offset]
-	sourceMap &SourceMap [json: map]
+	offset     Offset     [json: offset]
+	source_map &SourceMap [json: map]
 }
 
 struct Consumer {
-	sourcemapURL string
-	file         string
-	sections     []Section
+	source_map_url string
+	file           string
+	sections       []Section
 }
 
-pub fn parse(sourcemapURL string, b []byte) ?&Consumer {
+pub fn parse(source_map_url string, b []byte) ?&Consumer {
 	v3 := json.decode(V3, string(b)) ?
 
-	checkVersion(v3.Version) ?
+	check_version(v3.Version) ?
 
-	if v3.Sections.len == 0 {
-		v3.Sections = append(v3.Sections, Section{
-			Map: v3.sourceMap
+	if v3.sections.len == 0 {
+		v3.sections = append(v3.sections, Section{
+			source_map: v3.SourceMap
 		})
 	}
 
-	for _, s in v3.Sections {
-		s.sourceMap.parse(sourcemapURL) ?
+	for _, s in v3.sections {
+		s.source_map.parse(source_map_url) ?
 	}
 
-	reverse(v3.Sections)
+	reverse(v3.sections)
 	return &Consumer{
 		sourcemap_url: sourcemap_url
-		file: v3.File
-		sections: v3.Sections
+		file: v3.file
+		sections: v3.sections
 	}, nil
 }
 
@@ -149,28 +149,29 @@ pub fn (c &Consumer) file() string {
 
 // source returns the original source, name, line, and column information
 // for the generated source's line and column positions.
-pub fn (c &Consumer) source(genLine int, genColumn int) (string, string, int, int, bool) {
+pub fn (c &Consumer) source(gen_line int, genColumn int) (string, string, int, int, bool) {
 	for i in c.sections {
 		s := &c.sections[i]
-		if s.Offset.Line < genLine || (s.Offset.Line + 1 == genLine && s.Offset.Column <= genColumn) {
-			genLine -= s.Offset.Line
-			genColumn -= s.Offset.Column
-			return c.psource(s.Map, genLine, genColumn)
+		if s.offset.Line < gen_line
+			|| (s.offset.Line + 1 == gen_line && s.offset.Column <= genColumn) {
+			gen_line -= s.offset.Line
+			genColumn -= s.offset.Column
+			return c.psource(s.Map, gen_line, genColumn)
 		}
 	}
 	return
 }
 
-fn (c &Consumer) psource(m &SourceMap, genLine int, genColumn int) (string, string, int, int, bool) {
+fn (c &Consumer) psource(m &SourceMap, gen_line int, gen_column int) (string, string, int, int, bool) {
 	mut source := ''
 	mut name := ''
 
 	i := sort.Search(m.mappings.len, fn (i int) bool {
 		m := &m.mappings[i]
-		if int(m.genLine) == genLine {
-			return int(m.genColumn) >= genColumn
+		if int(m.gen_line) == gen_line {
+			return int(m.gen_column) >= gen_column
 		}
-		return int(m.genLine) >= genLine
+		return int(m.gen_line) >= gen_line
 	})
 
 	// Mapping not found.
@@ -181,31 +182,31 @@ fn (c &Consumer) psource(m &SourceMap, genLine int, genColumn int) (string, stri
 	mch := &m.mappings[i]
 
 	// Fuzzy match.
-	if int(mch.genLine) > genLine || int(mch.genColumn) > genColumn {
+	if int(mch.gen_line) > gen_line || int(mch.gen_column) > gen_column {
 		if i == 0 {
 			return '', '', 0, 0, false
 		}
 		mch = &m.mappings[i - 1]
 	}
 
-	if mch.sourcesInd >= 0 {
-		source = m.Sources[mch.sourcesInd]
+	if mch.sources_ind >= 0 {
+		source = m.sources[mch.sources_ind]
 	}
-	if mch.namesInd >= 0 {
-		name = m.name(int(mch.namesInd))
+	if mch.names_ind >= 0 {
+		name = m.name(int(mch.names_ind))
 	}
 
-	return source, name, int(mch.sourceLine), int(mch.sourceColumn), true
+	return source, name, int(mch.source_line), int(mch.source_column), true
 }
 
 // source_content returns the original source content for the source.
 pub fn (c &Consumer) source_content(source string) string {
 	for i in c.sections {
 		s := &c.sections[i]
-		for j, src in s.sourceMap.Sources {
+		for j, src in s.source_map.sources {
 			if src == source {
-				if j < s.sourceMap.SourcesContent.len {
-					return s.sourceMap.SourcesContent[j]
+				if j < s.source_map.sources_content.len {
+					return s.source_map.sources_content[j]
 				}
 				break
 			}
